@@ -1,0 +1,27 @@
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    name: traefik-public
