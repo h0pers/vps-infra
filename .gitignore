@@ -1,2 +1,3 @@
 traefik/.env
 traefik/letsencrypt/
+traefik/logs/

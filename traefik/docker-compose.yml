@@ -16,9 +16,13 @@ services:
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/logs/access.log"
+      - "--accesslog.format=json"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
+      - ./logs:/logs
     networks:
       - traefik-public
 
