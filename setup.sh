@@ -216,7 +216,7 @@ EOF
 echo "-> Hardening SSH"
 if [ -f /home/"$DEPLOY_USER"/.ssh/authorized_keys ]; then
   sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-  sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+  sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
   systemctl restart sshd 2>/dev/null || systemctl restart ssh
   echo "   SSH hardened: password auth disabled, root login disabled"
 else
