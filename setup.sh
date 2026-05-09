@@ -10,8 +10,13 @@ set -euo pipefail
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
 ACME_EMAIL="${ACME_EMAIL:?ACME_EMAIL is required. Run: ACME_EMAIL=you@email.com bash setup.sh}"
 
+export DEBIAN_FRONTEND=noninteractive
+
+echo "-> Recovering any interrupted dpkg operations"
+dpkg --configure -a
+
 echo "-> Updating system packages"
-apt-get update -q && apt-get upgrade -y -q
+apt-get update -q && apt-get upgrade -y -q -o Dpkg::Options::="--force-confold"
 
 echo "-> Installing packages"
 apt-get install -y -q curl git fail2ban unattended-upgrades logrotate
@@ -212,7 +217,7 @@ echo "-> Hardening SSH"
 if [ -f /home/"$DEPLOY_USER"/.ssh/authorized_keys ]; then
   sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
   sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-  systemctl restart sshd
+  systemctl restart sshd 2>/dev/null || systemctl restart ssh
   echo "   SSH hardened: password auth disabled, root login disabled"
 else
   echo "   WARNING: no authorized_keys found - skipping SSH hardening to prevent lockout"
