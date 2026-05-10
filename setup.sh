@@ -167,7 +167,7 @@ failregex = ^.*"ClientHost":"<HOST>".*"DownstreamStatus":(4[0-9]{2}|5[0-9]{2}).*
 ignoreregex = ^.*"DownstreamStatus":200.*$
 EOF
 
-TRAEFIK_LOG="/home/$DEPLOY_USER/vps-infra/traefik/logs/access.log"
+TRAEFIK_LOG="/opt/vps-infra/traefik/logs/access.log"
 
 cat > /etc/fail2ban/jail.local << EOF
 [DEFAULT]
@@ -224,17 +224,16 @@ else
 fi
 
 echo "-> Setting up Traefik"
-INFRA_DIR="/home/$DEPLOY_USER/vps-infra"
+INFRA_DIR="/opt/vps-infra"
 if [ ! -d "$INFRA_DIR/.git" ]; then
-  if ! sudo -u "$DEPLOY_USER" git clone https://github.com/h0pers/vps-infra.git "$INFRA_DIR"; then
+  if ! git clone https://github.com/h0pers/vps-infra.git "$INFRA_DIR"; then
     echo "ERROR: failed to clone vps-infra - check network and repo access"
     exit 1
   fi
 fi
 mkdir -p "$INFRA_DIR/traefik/logs"
-chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INFRA_DIR/traefik/logs"
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INFRA_DIR"
 echo "ACME_EMAIL=$ACME_EMAIL" > "$INFRA_DIR/traefik/.env"
-chown "$DEPLOY_USER":"$DEPLOY_USER" "$INFRA_DIR/traefik/.env"
 sudo -u "$DEPLOY_USER" docker compose -f "$INFRA_DIR/traefik/docker-compose.yml" up -d
 
 echo ""
