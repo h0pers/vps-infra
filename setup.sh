@@ -1,14 +1,21 @@
 #!/bin/bash
 # Bootstrap a fresh Ubuntu/Debian VPS.
-# Run as root: DEPLOY_USER=deploy ACME_EMAIL=you@email.com bash setup.sh
+# Run with root privileges:
+#   sudo DEPLOY_USER=deploy ACME_EMAIL=you@email.com bash setup.sh
 #
 # Variables:
-#   DEPLOY_USER  - non-root user to create (default: deploy)
-#   ACME_EMAIL   - email for Let's Encrypt notifications (required)
+#   DEPLOY_USER          - non-root user to create (default: deploy)
+#   ACME_EMAIL           - email for Let's Encrypt notifications (required)
+#   SSH_AUTHORIZED_KEYS  - newline-separated pubkeys to add to deploy user
+#                          (optional; existing keys are preserved, duplicates skipped)
+#   SSH_AUTHORIZED_KEYS_FILE - path to a file with pubkeys, one per line
+#                              (optional; alternative to SSH_AUTHORIZED_KEYS)
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
-ACME_EMAIL="${ACME_EMAIL:?ACME_EMAIL is required. Run: ACME_EMAIL=you@email.com bash setup.sh}"
+ACME_EMAIL="${ACME_EMAIL:?ACME_EMAIL is required. Run: sudo ACME_EMAIL=you@email.com bash setup.sh}"
+SSH_AUTHORIZED_KEYS="${SSH_AUTHORIZED_KEYS:-}"
+SSH_AUTHORIZED_KEYS_FILE="${SSH_AUTHORIZED_KEYS_FILE:-}"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -51,14 +58,48 @@ if ! id "$DEPLOY_USER" &>/dev/null; then
 fi
 usermod -aG docker "$DEPLOY_USER"
 
-# Copy root SSH authorized_keys to deploy user
-if [ -f /root/.ssh/authorized_keys ]; then
-  mkdir -p /home/"$DEPLOY_USER"/.ssh
-  cp /root/.ssh/authorized_keys /home/"$DEPLOY_USER"/.ssh/authorized_keys
-  chown -R "$DEPLOY_USER":"$DEPLOY_USER" /home/"$DEPLOY_USER"/.ssh
-  chmod 700 /home/"$DEPLOY_USER"/.ssh
-  chmod 600 /home/"$DEPLOY_USER"/.ssh/authorized_keys
+# Merge pubkeys into deploy user's authorized_keys.
+# Sources (all optional, all merged): existing deploy keys, root keys (first run only),
+# $SSH_AUTHORIZED_KEYS (env), $SSH_AUTHORIZED_KEYS_FILE (env). Duplicates dropped.
+DEPLOY_SSH_DIR="/home/$DEPLOY_USER/.ssh"
+DEPLOY_AUTH_KEYS="$DEPLOY_SSH_DIR/authorized_keys"
+mkdir -p "$DEPLOY_SSH_DIR"
+
+# First run only: seed from root keys so initial bootstrap inherits the SSH session's key
+if [ ! -f "$DEPLOY_AUTH_KEYS" ] && [ -f /root/.ssh/authorized_keys ]; then
+  cp /root/.ssh/authorized_keys "$DEPLOY_AUTH_KEYS"
 fi
+touch "$DEPLOY_AUTH_KEYS"
+
+add_pubkey() {
+  local key="$1"
+  # Trim whitespace
+  key="$(echo "$key" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [ -z "$key" ] && return 0
+  # Skip comments and obvious non-keys
+  case "$key" in \#*) return 0 ;; esac
+  # grep -F -x: exact line match; only append if not already present
+  if ! grep -F -x -q -- "$key" "$DEPLOY_AUTH_KEYS"; then
+    echo "$key" >> "$DEPLOY_AUTH_KEYS"
+    echo "   + added pubkey: ${key:0:40}..."
+  fi
+}
+
+if [ -n "$SSH_AUTHORIZED_KEYS" ]; then
+  while IFS= read -r line; do
+    add_pubkey "$line"
+  done <<< "$SSH_AUTHORIZED_KEYS"
+fi
+
+if [ -n "$SSH_AUTHORIZED_KEYS_FILE" ] && [ -f "$SSH_AUTHORIZED_KEYS_FILE" ]; then
+  while IFS= read -r line; do
+    add_pubkey "$line"
+  done < "$SSH_AUTHORIZED_KEYS_FILE"
+fi
+
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$DEPLOY_SSH_DIR"
+chmod 700 "$DEPLOY_SSH_DIR"
+chmod 600 "$DEPLOY_AUTH_KEYS"
 
 echo "-> Configuring swap (2 GB)"
 if [ ! -f /swapfile ]; then
