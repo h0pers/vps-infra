@@ -28,6 +28,15 @@ fi
 systemctl enable docker
 systemctl start docker
 
+echo "-> Installing docker-rollout CLI plugin (system-wide)"
+PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
+mkdir -p "$PLUGIN_DIR"
+if [ ! -x "$PLUGIN_DIR/docker-rollout" ]; then
+  curl -fsSL https://raw.githubusercontent.com/Wowu/docker-rollout/main/docker-rollout \
+    -o "$PLUGIN_DIR/docker-rollout"
+  chmod +x "$PLUGIN_DIR/docker-rollout"
+fi
+
 echo "-> Enabling unattended security upgrades"
 cat > /etc/apt/apt.conf.d/52unattended-upgrades-local << 'EOF'
 Unattended-Upgrade::Automatic-Reboot "false";
