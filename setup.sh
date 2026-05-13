@@ -241,9 +241,11 @@ if [ ! -d "$INFRA_DIR/.git" ]; then
   fi
 fi
 mkdir -p "$INFRA_DIR/traefik/logs"
-chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INFRA_DIR"
+chown -R root:root "$INFRA_DIR"
+chmod -R u=rwX,g=rX,o=rX "$INFRA_DIR"
 echo "ACME_EMAIL=$ACME_EMAIL" > "$INFRA_DIR/traefik/.env"
-sudo -u "$DEPLOY_USER" docker compose -f "$INFRA_DIR/traefik/docker-compose.yml" up -d
+chmod 644 "$INFRA_DIR/traefik/.env"
+docker compose -f "$INFRA_DIR/traefik/docker-compose.yml" up -d
 
 echo ""
 echo "-> Done."
