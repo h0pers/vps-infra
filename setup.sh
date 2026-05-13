@@ -239,6 +239,9 @@ if [ ! -d "$INFRA_DIR/.git" ]; then
     echo "ERROR: failed to clone vps-infra - check network and repo access"
     exit 1
   fi
+else
+  echo "   /opt/vps-infra exists - pulling latest"
+  git -C "$INFRA_DIR" pull --ff-only || echo "   WARNING: git pull failed - continuing with current state"
 fi
 mkdir -p "$INFRA_DIR/traefik/logs"
 chown -R root:root "$INFRA_DIR"
