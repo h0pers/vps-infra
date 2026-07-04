@@ -287,6 +287,9 @@ fi
 mkdir -p "$INFRA_DIR/traefik/logs"
 chown -R root:root "$INFRA_DIR"
 chmod -R u=rwX,g=rX,o=rX "$INFRA_DIR"
+# The recursive chmod above resets acme.json to 644; Traefik refuses to
+# load the ACME account unless it is 600, which disables cert issuance.
+[ -f "$INFRA_DIR/traefik/letsencrypt/acme.json" ] && chmod 600 "$INFRA_DIR/traefik/letsencrypt/acme.json"
 echo "ACME_EMAIL=$ACME_EMAIL" > "$INFRA_DIR/traefik/.env"
 chmod 644 "$INFRA_DIR/traefik/.env"
 docker compose -f "$INFRA_DIR/traefik/docker-compose.yml" up -d
