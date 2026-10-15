@@ -1,0 +1,13 @@
+[Unit]
+Description=iptables hardening rules
+After=docker.service network-online.target
+Wants=network-online.target
+Before=fail2ban.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/iptables-hardening.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,60 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - fail2ban
+      - iptables
+      - ipset
+      - logrotate
+      - unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure unattended upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52unattended-upgrades-local
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable unattended upgrades
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: true
+    state: started
+
+- name: Create swap file
+  ansible.builtin.command: fallocate -l {{ swap_size_mb }}M /swapfile
+  args:
+    creates: /swapfile
+  notify: Enable swap file
+
+- name: Restrict swap file permissions
+  ansible.builtin.file:
+    path: /swapfile
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Format swap file
+  community.general.filesystem:
+    dev: /swapfile
+    fstype: swap
+
+- name: Add swap file to fstab
+  ansible.posix.mount:
+    path: none
+    src: /swapfile
+    fstype: swap
+    opts: sw
+    state: present
+
+- name: Enable SYN cookies
+  ansible.posix.sysctl:
+    name: net.ipv4.tcp_syncookies
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-hardening.conf

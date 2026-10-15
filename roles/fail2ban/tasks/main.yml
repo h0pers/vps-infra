@@ -1,0 +1,43 @@
+- name: Install Traefik fail2ban filter
+  ansible.builtin.copy:
+    src: traefik-http.conf
+    dest: /etc/fail2ban/filter.d/traefik-http.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Install fail2ban jails
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Create fail2ban systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/fail2ban.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start fail2ban after Docker and the firewall
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/fail2ban.service.d/after-docker.conf
+    content: |
+      [Unit]
+      After=docker.service iptables-hardening.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Enable fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: true
+    state: started
+    daemon_reload: true

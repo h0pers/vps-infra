@@ -1,0 +1,49 @@
+- name: Require at least one admin SSH key
+  ansible.builtin.assert:
+    that: admin_authorized_keys | default([]) | length > 0
+    fail_msg: admin_authorized_keys is empty, refusing to continue because root login gets disabled
+
+- name: Create admin user
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    shell: /bin/bash
+    create_home: true
+  register: users_admin_result
+
+- name: Allow admin user passwordless sudo
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/{{ admin_user }}
+    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Add admin SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ admin_authorized_keys | join('\n') }}"
+  # In check mode a user that is about to be created doesn't exist yet
+  when: not (ansible_check_mode and users_admin_result is changed)
+
+- name: Create deploy users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    shell: /bin/bash
+    create_home: true
+  loop: "{{ deploy_users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: users_deploy_result
+
+- name: Add deploy SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.authorized_keys | join('\n') }}"
+  loop: "{{ deploy_users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    index_var: users_deploy_index
+  when:
+    - item.authorized_keys | default([]) | length > 0
+    - not (ansible_check_mode and users_deploy_result.results[users_deploy_index] is changed)
