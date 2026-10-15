@@ -3,3 +3,4 @@ traefik/letsencrypt/
 traefik/logs/
 inventory.yml
 .ansible/
+known_hosts

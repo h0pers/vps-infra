@@ -51,7 +51,7 @@
     name: "{{ item.name }}"
     groups: docker
     append: true
-  loop: "{{ deploy_users | default([]) }}"
+  loop: "{{ users_deploy_users | default([]) }}"
   loop_control:
     label: "{{ item.name }}"
 

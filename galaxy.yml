@@ -1,0 +1,28 @@
+namespace: h0pers
+name: vps
+version: 1.0.0
+readme: README.md
+authors:
+  - Dmytro Hryshchenko
+description: Configure Ubuntu VPS servers that host Docker apps behind a shared Traefik proxy
+license:
+  - MIT
+tags:
+  - docker
+  - traefik
+  - security
+  - infrastructure
+dependencies:
+  ansible.posix: ">=2.2.2,<3.0.0"
+  community.docker: ">=5.4.0,<6.0.0"
+  community.general: ">=13.5.0,<14.0.0"
+repository: https://github.com/h0pers/vps-infra
+issues: https://github.com/h0pers/vps-infra/issues
+build_ignore:
+  - inventory.yml
+  - known_hosts
+  - traefik
+  - .ansible
+  - .github
+  - .gitignore
+  - .pre-commit-config.yaml

@@ -21,7 +21,7 @@ apply_input_rules() {
 
   $ipt -A INPUT -p tcp --dport 22 \
     -m hashlimit --hashlimit-name ssh-limit \
-    --hashlimit {{ ssh_rate_per_minute }}/minute --hashlimit-burst {{ ssh_rate_per_minute }} \
+    --hashlimit {{ firewall_ssh_rate_per_minute }}/minute --hashlimit-burst {{ firewall_ssh_rate_per_minute }} \
     --hashlimit-mode srcip -j ACCEPT
   $ipt -A INPUT -p tcp --dport 22 -j DROP
 }
@@ -35,7 +35,7 @@ apply_docker_user_rules() {
   for port in 80 443; do
     $ipt -A DOCKER-USER -p tcp -m conntrack --ctstate NEW --ctorigdstport "$port" \
       -m hashlimit --hashlimit-name "http-limit-$port" \
-      --hashlimit-above {{ http_rate_per_minute }}/minute --hashlimit-burst {{ http_rate_burst }} \
+      --hashlimit-above {{ firewall_http_rate_per_minute }}/minute --hashlimit-burst {{ firewall_http_rate_burst }} \
       --hashlimit-mode srcip -j DROP
   done
 

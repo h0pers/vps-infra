@@ -1,7 +1,7 @@
 - name: Require ACME email
   ansible.builtin.assert:
-    that: acme_email is defined and acme_email | length > 0
-    fail_msg: acme_email must be set in the inventory
+    that: traefik_acme_email is defined and traefik_acme_email | length > 0
+    fail_msg: traefik_acme_email must be set in the inventory
 
 - name: Create Traefik directories
   ansible.builtin.file:
@@ -37,7 +37,7 @@
 
 - name: Copy Traefik compose file
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/traefik/docker-compose.yml"
+    src: docker-compose.yml
     dest: "{{ traefik_dir }}/docker-compose.yml"
     owner: root
     group: root
@@ -46,7 +46,7 @@
 - name: Write Traefik environment
   ansible.builtin.copy:
     dest: "{{ traefik_dir }}/.env"
-    content: "ACME_EMAIL={{ acme_email }}\n"
+    content: "ACME_EMAIL={{ traefik_acme_email }}\n"
     owner: root
     group: root
     mode: "0644"

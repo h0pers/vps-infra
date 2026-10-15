@@ -1,0 +1,7 @@
+fail2ban_ssh_maxretry: 10
+fail2ban_ssh_findtime: 5m
+fail2ban_ssh_bantime: 1d
+fail2ban_http_maxretry: 20
+fail2ban_http_findtime: 5m
+fail2ban_http_bantime: 1h
+fail2ban_traefik_log_path: /opt/vps-infra/traefik/logs/access.log
