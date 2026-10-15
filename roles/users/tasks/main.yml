@@ -8,6 +8,7 @@
     name: "{{ admin_user }}"
     shell: /bin/bash
     create_home: true
+  register: admin_user_result
 
 - name: Allow admin user passwordless sudo
   ansible.builtin.copy:
@@ -22,15 +23,27 @@
   ansible.posix.authorized_key:
     user: "{{ admin_user }}"
     key: "{{ admin_authorized_keys | join('\n') }}"
+  # In check mode a user that is about to be created doesn't exist yet
+  when: not (ansible_check_mode and admin_user_result is changed)
 
-- name: Create deploy user
+- name: Create deploy users
   ansible.builtin.user:
-    name: "{{ deploy_user }}"
+    name: "{{ item.name }}"
     shell: /bin/bash
     create_home: true
+  loop: "{{ deploy_users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: deploy_users_result
 
 - name: Add deploy SSH keys
   ansible.posix.authorized_key:
-    user: "{{ deploy_user }}"
-    key: "{{ deploy_authorized_keys | join('\n') }}"
-  when: deploy_authorized_keys | default([]) | length > 0
+    user: "{{ item.name }}"
+    key: "{{ item.authorized_keys | join('\n') }}"
+  loop: "{{ deploy_users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+    index_var: deploy_user_index
+  when:
+    - item.authorized_keys | default([]) | length > 0
+    - not (ansible_check_mode and deploy_users_result.results[deploy_user_index] is changed)

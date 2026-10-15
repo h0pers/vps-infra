@@ -46,11 +46,14 @@
     enabled: true
     state: started
 
-- name: Add deploy user to docker group
+- name: Add deploy users to docker group
   ansible.builtin.user:
-    name: "{{ deploy_user }}"
+    name: "{{ item.name }}"
     groups: docker
     append: true
+  loop: "{{ deploy_users | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 - name: Create Docker CLI plugins directory
   ansible.builtin.file:

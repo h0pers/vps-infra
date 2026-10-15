@@ -7,11 +7,11 @@ Server infrastructure for VPS servers hosting multiple apps: an Ansible playbook
 | Role | Details |
 |---|---|
 | `base` | Base packages, unattended security upgrades (no auto-reboot), 2 GB swap, SYN cookies |
-| `users` | `ansible` admin user with passwordless sudo, `deploy` user in the `docker` group (no sudo), SSH keys merged (existing keys are kept) |
+| `users` | `ansible` admin user with passwordless sudo, one deploy user per app in the `docker` group (no sudo), SSH keys merged (existing keys are kept) |
 | `docker` | Docker from the official apt repository, [docker-rollout](https://github.com/Wowu/docker-rollout) at a pinned version |
 | `firewall` | iptables + ip6tables: SYN flood protection, SSH rate limit on `INPUT`, HTTP/HTTPS rate limit on `DOCKER-USER` |
 | `traefik` | Traefik on ports 80/443 in `/opt/vps-infra/traefik`, access logs rotated daily (14 days) |
-| `fail2ban` | SSH jail, plus a Traefik jail (20 errors / 5 min) that bans in `DOCKER-USER`, incremental bans up to 30 days |
+| `fail2ban` | SSH jail (10 failures / 5 min), plus a Traefik jail (20 errors / 5 min) that bans in `DOCKER-USER`, incremental bans up to 30 days |
 | `ssh` | Password and root login disabled |
 
 Docker-published ports bypass the `INPUT` chain, so all rules and bans for web traffic live in `DOCKER-USER`.
@@ -39,18 +39,22 @@ vps:
   hosts:
     blog:
       ansible_host: 203.0.113.10
+      deploy_users:
+        - name: blog
+          authorized_keys:
+            - ssh-ed25519 AAAA... blog-github-actions
   vars:
     ansible_user: ansible
     acme_email: you@example.com
     admin_authorized_keys:
       - ssh-ed25519 AAAA... ansible-ci
       - ssh-ed25519 AAAA... laptop
-    deploy_authorized_keys:
-      - ssh-ed25519 AAAA... github-actions-deploy
 ```
 
 - `admin_authorized_keys`: keys for the `ansible` user. Required, because root login gets disabled.
-- `deploy_authorized_keys`: keys for the `deploy` user that the apps deploy with.
+- `deploy_users`: one user per app on that server, with the keys its GitHub Actions deploy with. Each user is added to the `docker` group. Removing a user from the list doesn't delete it from the server.
+
+Membership in the `docker` group is equivalent to root, so separate deploy users keep apps organized and keys revocable per app, but they don't isolate apps from each other.
 
 Defaults such as `swap_size_mb` or the fail2ban limits live in `group_vars/vps.yml`. To change one for a single server, set it as a host variable, e.g. `swap_size_mb: 4096` under that host. Group variables in the inventory don't override `group_vars/`.
 
@@ -82,6 +86,12 @@ Existing servers keep Traefik in `/opt/vps-infra/traefik`, so certificates and t
 2. Preview the changes as root: `ansible-playbook site.yml --limit blog -e ansible_user=root --check --diff`
 3. Apply: `ansible-playbook site.yml --limit blog -e ansible_user=root`
 4. Check that `ssh ansible@<server-ip>` works. Root login is disabled from now on.
+
+## Server access
+
+- SSH as `ansible` and use `sudo` (or `sudo -i`) for root.
+- Root SSH login is disabled, which also breaks the DigitalOcean Droplet Console, because it logs in as root. Open the console, then change `os_user=root` to `os_user=ansible` in its URL and bookmark it.
+- The SSH jail bans an IP after 10 failed logins in 5 minutes, and a single refused root login counts as about 3. If you get banned, connect from another network (phone hotspot, VPN) and run `sudo fail2ban-client set sshd unbanip <ip>`.
 
 ## GitHub Actions
 

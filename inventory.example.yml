@@ -2,13 +2,22 @@ vps:
   hosts:
     blog:
       ansible_host: 203.0.113.10
+      deploy_users:
+        - name: blog
+          authorized_keys:
+            - ssh-ed25519 AAAA... blog-github-actions
     shop:
       ansible_host: 203.0.113.20
+      deploy_users:
+        - name: shop
+          authorized_keys:
+            - ssh-ed25519 AAAA... shop-github-actions
+        - name: shop-admin
+          authorized_keys:
+            - ssh-ed25519 AAAA... shop-admin-github-actions
   vars:
     ansible_user: ansible
     acme_email: you@example.com
     admin_authorized_keys:
       - ssh-ed25519 AAAA... ansible-ci
       - ssh-ed25519 AAAA... laptop
-    deploy_authorized_keys:
-      - ssh-ed25519 AAAA... github-actions-deploy
