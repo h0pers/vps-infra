@@ -19,7 +19,7 @@ enabled      = true
 filter       = traefik-http
 backend      = polling
 journalmatch =
-logpath      = {{ traefik_dir }}/logs/access.log
+logpath      = {{ fail2ban_traefik_log_path }}
 logtimezone  = UTC
 banaction    = iptables-ipset[type=multiport]
 chain        = DOCKER-USER

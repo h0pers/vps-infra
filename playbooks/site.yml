@@ -1,0 +1,11 @@
+- name: Configure VPS servers
+  hosts: vps
+  become: true
+  roles:
+    - h0pers.vps.base
+    - h0pers.vps.users
+    - h0pers.vps.docker
+    - h0pers.vps.firewall
+    - h0pers.vps.traefik
+    - h0pers.vps.fail2ban
+    - h0pers.vps.ssh

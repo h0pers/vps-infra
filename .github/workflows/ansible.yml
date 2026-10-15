@@ -1,26 +1,38 @@
 name: Ansible
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       apply:
-        description: Apply changes (unchecked runs --check --diff)
+        description: Apply changes (false runs --check --diff)
         type: boolean
         default: false
       limit:
         description: Limit to hosts (e.g. blog or blog,shop)
         type: string
         default: ""
-
-concurrency:
-  group: ansible
+      environment:
+        description: GitHub environment that holds ANSIBLE_SSH_PRIVATE_KEY
+        type: string
+        default: production
+    secrets:
+      ANSIBLE_SSH_PRIVATE_KEY:
+        description: Private key for the admin user; read from the environment
+        required: false
 
 jobs:
   ansible:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: ansible
     permissions:
       contents: read
+    env:
+      ANSIBLE_PIPELINING: "true"
+      ANSIBLE_CALLBACK_RESULT_FORMAT: yaml
+      ANSIBLE_RETRY_FILES_ENABLED: "false"
+      ANSIBLE_INTERPRETER_PYTHON: auto_silent
 
     steps:
       - name: Checkout
@@ -31,33 +43,30 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install Ansible
+      - name: Install Ansible and collections
         run: |
           pip install ansible-core==2.21.5
           ansible-galaxy collection install -r requirements.yml
 
-      - name: Write inventory and SSH credentials
+      - name: Write SSH credentials
         env:
-          ANSIBLE_INVENTORY: ${{ secrets.ANSIBLE_INVENTORY }}
           ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
-          printf '%s\n' "$ANSIBLE_INVENTORY" > inventory.yml
           install -m 700 -d ~/.ssh
           printf '%s\n' "$ANSIBLE_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cp known_hosts ~/.ssh/known_hosts
 
       - name: Run playbook
         env:
           APPLY: ${{ inputs.apply }}
           LIMIT: ${{ inputs.limit }}
         run: |
-          args=(--diff)
+          args=(-i inventory.yml --diff)
           if [ "$APPLY" != "true" ]; then
             args+=(--check)
           fi
           if [ -n "$LIMIT" ]; then
             args+=(--limit "$LIMIT")
           fi
-          ansible-playbook site.yml "${args[@]}"
+          ansible-playbook h0pers.vps.site "${args[@]}"

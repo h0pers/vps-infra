@@ -28,7 +28,7 @@
     state: started
 
 - name: Create swap file
-  ansible.builtin.command: fallocate -l {{ swap_size_mb }}M /swapfile
+  ansible.builtin.command: fallocate -l {{ base_swap_size_mb }}M /swapfile
   args:
     creates: /swapfile
   notify: Enable swap file
