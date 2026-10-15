@@ -1,0 +1,9 @@
+{{ traefik_dir }}/logs/access.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

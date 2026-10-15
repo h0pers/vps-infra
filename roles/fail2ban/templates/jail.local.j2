@@ -1,0 +1,29 @@
+[DEFAULT]
+bantime           = 1d
+findtime          = 10m
+maxretry          = 5
+bantime.increment = true
+bantime.factor    = 1
+bantime.formula   = ban.Time * (1<<(ban.Count if ban.Count<20 else 20)) * banFactor
+bantime.maxtime   = 30d
+
+[sshd]
+enabled  = true
+port     = ssh
+maxretry = {{ fail2ban_ssh_maxretry }}
+findtime = {{ fail2ban_ssh_findtime }}
+bantime  = {{ fail2ban_ssh_bantime }}
+
+[traefik-http]
+enabled      = true
+filter       = traefik-http
+backend      = polling
+journalmatch =
+logpath      = {{ traefik_dir }}/logs/access.log
+logtimezone  = UTC
+banaction    = iptables-ipset[type=multiport]
+chain        = DOCKER-USER
+port         = http,https
+maxretry = {{ fail2ban_http_maxretry }}
+findtime = {{ fail2ban_http_findtime }}
+bantime  = {{ fail2ban_http_bantime }}

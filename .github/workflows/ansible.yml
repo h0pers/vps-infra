@@ -1,0 +1,60 @@
+name: Ansible
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply changes (unchecked runs --check --diff)
+        type: boolean
+        default: false
+      limit:
+        description: Limit to hosts (e.g. blog or blog,shop)
+        type: string
+        default: ""
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Ansible
+        run: |
+          pip install ansible-core==2.21.5
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Write inventory and SSH credentials
+        env:
+          ANSIBLE_INVENTORY: ${{ secrets.ANSIBLE_INVENTORY }}
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          printf '%s\n' "$ANSIBLE_INVENTORY" > inventory.yml
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$ANSIBLE_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Run playbook
+        env:
+          APPLY: ${{ inputs.apply }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          args=()
+          if [ "$APPLY" != "true" ]; then
+            args+=(--check --diff)
+          fi
+          if [ -n "$LIMIT" ]; then
+            args+=(--limit "$LIMIT")
+          fi
+          ansible-playbook site.yml "${args[@]}"

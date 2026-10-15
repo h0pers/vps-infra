@@ -1,0 +1,36 @@
+- name: Require at least one admin SSH key
+  ansible.builtin.assert:
+    that: admin_authorized_keys | default([]) | length > 0
+    fail_msg: admin_authorized_keys is empty, refusing to continue because root login gets disabled
+
+- name: Create admin user
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Allow admin user passwordless sudo
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/{{ admin_user }}
+    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Add admin SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ admin_authorized_keys | join('\n') }}"
+
+- name: Create deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Add deploy SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ deploy_authorized_keys | join('\n') }}"
+  when: deploy_authorized_keys | default([]) | length > 0

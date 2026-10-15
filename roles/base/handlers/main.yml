@@ -1,0 +1,3 @@
+- name: Enable swap file
+  ansible.builtin.command: swapon /swapfile
+  changed_when: true

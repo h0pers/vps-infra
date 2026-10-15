@@ -1,0 +1,24 @@
+- name: Install iptables hardening script
+  ansible.builtin.template:
+    src: iptables-hardening.sh.j2
+    dest: /usr/local/bin/iptables-hardening.sh
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart iptables hardening
+
+- name: Install iptables hardening service
+  ansible.builtin.template:
+    src: iptables-hardening.service.j2
+    dest: /etc/systemd/system/iptables-hardening.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart iptables hardening
+
+- name: Enable iptables hardening service
+  ansible.builtin.systemd_service:
+    name: iptables-hardening
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -29,4 +29,3 @@ services:
 networks:
   traefik-public:
     name: traefik-public
-

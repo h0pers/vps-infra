@@ -1,35 +1,103 @@
 # vps-infra
 
-Server infrastructure for shared VPS hosting multiple apps. Includes one-command VPS bootstrap and a global Traefik reverse proxy with automatic SSL.
+Server infrastructure for VPS servers hosting multiple apps: an Ansible playbook that configures every server, and a global Traefik reverse proxy with automatic SSL.
+
+## What the playbook sets up
+
+| Role | Details |
+|---|---|
+| `base` | Base packages, unattended security upgrades (no auto-reboot), 2 GB swap, SYN cookies |
+| `users` | `ansible` admin user with passwordless sudo, `deploy` user in the `docker` group (no sudo), SSH keys merged (existing keys are kept) |
+| `docker` | Docker from the official apt repository, [docker-rollout](https://github.com/Wowu/docker-rollout) at a pinned version |
+| `firewall` | iptables + ip6tables: SYN flood protection, SSH rate limit on `INPUT`, HTTP/HTTPS rate limit on `DOCKER-USER` |
+| `traefik` | Traefik on ports 80/443 in `/opt/vps-infra/traefik`, access logs rotated daily (14 days) |
+| `fail2ban` | SSH jail, plus a Traefik jail (20 errors / 5 min) that bans in `DOCKER-USER`, incremental bans up to 30 days |
+| `ssh` | Password and root login disabled |
+
+Docker-published ports bypass the `INPUT` chain, so all rules and bans for web traffic live in `DOCKER-USER`.
+
+## Requirements
+
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/) (or pip) on the machine that runs Ansible
+- Ubuntu 24.04 servers, reachable over SSH
+
+```bash
+uv tool install ansible-core==2.21.5
+ansible-galaxy collection install -r requirements.yml
+```
+
+## Inventory
+
+The repository is public, so the real inventory is never committed. Copy the example and fill in your servers:
+
+```bash
+cp inventory.example.yml inventory.yml
+```
+
+```yaml
+vps:
+  hosts:
+    blog:
+      ansible_host: 203.0.113.10
+  vars:
+    ansible_user: ansible
+    acme_email: you@example.com
+    admin_authorized_keys:
+      - ssh-ed25519 AAAA... ansible-ci
+      - ssh-ed25519 AAAA... laptop
+    deploy_authorized_keys:
+      - ssh-ed25519 AAAA... github-actions-deploy
+```
+
+- `admin_authorized_keys`: keys for the `ansible` user. Required, because root login gets disabled.
+- `deploy_authorized_keys`: keys for the `deploy` user that the apps deploy with.
+
+Defaults such as `swap_size_mb` or the fail2ban limits live in `group_vars/vps.yml`. To change one for a single server, set it as a host variable, e.g. `swap_size_mb: 4096` under that host. Group variables in the inventory don't override `group_vars/`.
+
+## Usage
+
+```bash
+ansible-playbook site.yml --check --diff     # preview changes on all servers
+ansible-playbook site.yml                    # apply
+ansible-playbook site.yml --limit blog       # one server only
+```
+
+Rerunning is safe: tasks only change what differs, and services restart only when their configuration changed.
 
 ## Bootstrap a new VPS
 
-Run with root privileges on a fresh Ubuntu/Debian droplet:
+On a fresh server only root (or the provider's sudo user) exists. Run the playbook once as that user, it creates the `ansible` user:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/h0pers/vps-infra/master/setup.sh | \
-  sudo DEPLOY_USER=deploy ACME_EMAIL=you@email.com bash
+ansible-playbook site.yml --limit blog -e ansible_user=root
 ```
 
-What it sets up:
+Every later run uses `ansible_user: ansible` from the inventory.
 
-| Component | Details |
+## Migrate a server set up with `setup.sh`
+
+Existing servers keep Traefik in `/opt/vps-infra/traefik`, so certificates and the running container are reused.
+
+1. Add the server to `inventory.yml`.
+2. Preview the changes as root: `ansible-playbook site.yml --limit blog -e ansible_user=root --check --diff`
+3. Apply: `ansible-playbook site.yml --limit blog -e ansible_user=root`
+4. Check that `ssh ansible@<server-ip>` works. Root login is disabled from now on.
+
+## GitHub Actions
+
+The `Ansible` workflow runs the playbook from GitHub. Start it manually from the Actions tab:
+
+- `apply` unchecked: `--check --diff`, shows what would change
+- `apply` checked: applies the changes
+- `limit`: optional host pattern, e.g. `blog`
+
+Secrets in the `production` environment:
+
+| Secret | Content |
 |---|---|
-| Docker | Installed via get.docker.com |
-| Deploy user | Non-root user added to docker group, SSH keys merged from root + `SSH_AUTHORIZED_KEYS` (idempotent, dedup) |
-| Swap | 2 GB swapfile |
-| iptables | SYN flood protection, rate limiting on ports 22/80/443, IPv4 + IPv6 |
-| fail2ban | SSH (3 attempts/5 min) + Traefik HTTP (20 errors/5 min), incremental bans up to 30 days |
-| SSH hardening | Password auth disabled, root login disabled |
-| unattended-upgrades | Security patches applied automatically, no auto-reboot |
-| Traefik | Started on ports 80/443, auto-starts on reboot |
-| logrotate | Traefik access logs rotated daily, 14 days retained |
-
-After setup, login as the deploy user:
-
-```bash
-ssh deploy@<server-ip>
-```
+| `ANSIBLE_INVENTORY` | the full `inventory.yml` |
+| `ANSIBLE_SSH_PRIVATE_KEY` | private key matching one of the `admin_authorized_keys` |
+| `SSH_KNOWN_HOSTS` | output of `ssh-keyscan <server-ip> ...` for every server |
 
 ## How it works
 
@@ -73,46 +141,3 @@ app1.com  ->  A  ->  <VPS_IP>
 app2.com  ->  A  ->  <VPS_IP>
 app3.com  ->  A  ->  <VPS_IP>
 ```
-
-## Manual Traefik setup (without setup.sh)
-
-```bash
-sudo git clone https://github.com/h0pers/vps-infra.git /opt/vps-infra
-sudo cp /opt/vps-infra/traefik/.env.example /opt/vps-infra/traefik/.env
-# edit .env - set ACME_EMAIL (e.g. sudo nano /opt/vps-infra/traefik/.env)
-cd /opt/vps-infra/traefik && sudo docker compose up -d
-```
-
-## Environment variables
-
-| Variable                   | Description                                                                                       |
-|----------------------------|---------------------------------------------------------------------------------------------------|
-| `ACME_EMAIL`               | Email for Let's Encrypt notifications (required)                                                  |
-| `DEPLOY_USER`              | Non-root user to create (default: `deploy`)                                                       |
-| `SSH_AUTHORIZED_KEYS`      | Newline-separated pubkeys to add to deploy user. Existing keys preserved, duplicates skipped.     |
-| `SSH_AUTHORIZED_KEYS_FILE` | Path to a file with pubkeys (one per line). Alternative to `SSH_AUTHORIZED_KEYS`.                 |
-
-Copy `traefik/.env.example` to `traefik/.env`. The `.env` file is gitignored - set it manually on each server.
-
-### Adding SSH keys on rerun
-
-`setup.sh` is idempotent. Rerunning never clobbers `~deploy/.ssh/authorized_keys` - it merges. Existing keys stay, new keys are appended, duplicates are skipped via exact-line match.
-
-```bash
-# Add a CI deploy key without losing existing keys
-curl -fsSL https://raw.githubusercontent.com/h0pers/vps-infra/master/setup.sh | \
-  sudo SSH_AUTHORIZED_KEYS="ssh-ed25519 AAAA... github-actions" \
-  ACME_EMAIL=you@email.com bash
-
-# Multiple keys at once
-curl -fsSL https://raw.githubusercontent.com/h0pers/vps-infra/master/setup.sh | \
-  sudo SSH_AUTHORIZED_KEYS=$'ssh-ed25519 AAAA... ci\nssh-ed25519 BBBB... laptop' \
-  ACME_EMAIL=you@email.com bash
-
-# From file
-curl -fsSL https://raw.githubusercontent.com/h0pers/vps-infra/master/setup.sh | \
-  sudo SSH_AUTHORIZED_KEYS_FILE=/tmp/keys.pub \
-  ACME_EMAIL=you@email.com bash
-```
-
-On the very first run, if `~deploy/.ssh/authorized_keys` does not yet exist, it is seeded from `/root/.ssh/authorized_keys` so the bootstrapping SSH session keeps working. Subsequent runs never re-seed from root.
