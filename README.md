@@ -109,6 +109,15 @@ Secrets in the `production` environment:
 | `ANSIBLE_SSH_PRIVATE_KEY` | private key matching one of the `admin_authorized_keys` |
 | `SSH_KNOWN_HOSTS` | output of `ssh-keyscan <server-ip> ...` for every server |
 
+## Linting
+
+[pre-commit](https://pre-commit.com/) runs `ansible-lint` before every commit, and the `Pre-commit` workflow runs the same hooks on every push and pull request.
+
+```bash
+pre-commit install             # run the hooks on every commit
+pre-commit run --all-files     # run them on demand
+```
+
 ## How it works
 
 One Traefik instance handles all incoming traffic on ports 80/443. Each app joins the `traefik-public` Docker network and declares its domain via labels. Traefik discovers containers automatically and issues SSL certs on demand.
