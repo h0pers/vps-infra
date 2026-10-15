@@ -50,6 +50,7 @@
     owner: root
     group: root
     mode: "0644"
+  diff: false
 
 - name: Start Traefik
   community.docker.docker_compose_v2:
