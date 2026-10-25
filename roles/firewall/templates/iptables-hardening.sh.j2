@@ -1,59 +1,45 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-apply_input_rules() {
+# Containers reach anything; from outside, published ports are reachable only on 80/443 and firewall_docker_allowed_ports
+docker_user_rules() {
   local ipt=$1
 
-  $ipt -P INPUT ACCEPT
-  $ipt -F INPUT
-  $ipt -P OUTPUT ACCEPT
-  $ipt -P FORWARD ACCEPT
-
-  $ipt -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-  $ipt -A INPUT -i lo -j ACCEPT
-  $ipt -A INPUT -m conntrack --ctstate INVALID -j DROP
-  $ipt -A INPUT -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
-
-  $ipt -A INPUT -p tcp --syn \
-    -m hashlimit --hashlimit-name syn-flood \
-    --hashlimit-above 50/second --hashlimit-burst 200 \
-    --hashlimit-mode srcip -j DROP
-
-  $ipt -A INPUT -p tcp --dport 22 \
-    -m hashlimit --hashlimit-name ssh-limit \
-    --hashlimit {{ firewall_ssh_rate_per_minute }}/minute --hashlimit-burst {{ firewall_ssh_rate_per_minute }} \
-    --hashlimit-mode srcip -j ACCEPT
-  $ipt -A INPUT -p tcp --dport 22 -j DROP
+  $ipt -w -n -L DOCKER-USER >/dev/null 2>&1 || return 0
+  cat <<EOF
+-F DOCKER-USER
+-A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+-A DOCKER-USER -i docker0 -j RETURN
+-A DOCKER-USER -i br-+ -j RETURN
+-A DOCKER-USER -p tcp -m conntrack --ctorigdstport 80 -j RETURN
+-A DOCKER-USER -p tcp -m conntrack --ctorigdstport 443 -j RETURN
+{% for port in firewall_docker_allowed_ports %}
+{% set parts = (port | string).split('/') %}
+-A DOCKER-USER -p {{ parts[1] | default('tcp') }} -m conntrack --ctorigdstport {{ parts[0] }} -j RETURN
+{% endfor %}
+-A DOCKER-USER -j DROP
+EOF
 }
 
-apply_docker_user_rules() {
-  local ipt=$1
+# iptables-restore commits the table in one transaction, so a failed run keeps the previous rules
+apply_rules() {
+  local ipt=$1 icmp=$2 dhcp=$3
 
-  $ipt -n -L DOCKER-USER >/dev/null 2>&1 || return 0
-  $ipt -F DOCKER-USER
-
-  for port in 80 443; do
-    $ipt -A DOCKER-USER -p tcp -m conntrack --ctstate NEW --ctorigdstport "$port" \
-      -m hashlimit --hashlimit-name "http-limit-$port" \
-      --hashlimit-above {{ firewall_http_rate_per_minute }}/minute --hashlimit-burst {{ firewall_http_rate_burst }} \
-      --hashlimit-mode srcip -j DROP
-  done
-
-  $ipt -A DOCKER-USER -j RETURN
+  ${ipt}-restore -w --noflush <<EOF
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+-F INPUT
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -m conntrack --ctstate INVALID -j DROP
+-A INPUT -p $icmp -j ACCEPT
+-A INPUT $dhcp -j ACCEPT
+-A INPUT -p tcp --dport 22 -j ACCEPT
+$(docker_user_rules "$ipt")
+COMMIT
+EOF
 }
 
-apply_input_rules iptables
-apply_input_rules ip6tables
-
-ip6tables -A INPUT -p ipv6-icmp -j ACCEPT
-
-iptables -A INPUT -p icmp --icmp-type echo-request \
-  -m hashlimit --hashlimit-name icmp-limit \
-  --hashlimit 5/second --hashlimit-burst 10 \
-  --hashlimit-mode srcip -j ACCEPT
-
-iptables -P INPUT DROP
-ip6tables -P INPUT DROP
-
-apply_docker_user_rules iptables
-apply_docker_user_rules ip6tables
+apply_rules iptables icmp "-p udp --sport 67 --dport 68"
+apply_rules ip6tables ipv6-icmp "-p udp -s fe80::/10 --sport 547 -d fe80::/10 --dport 546"

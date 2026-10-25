@@ -4,3 +4,4 @@ traefik/logs/
 inventory.yml
 .ansible/
 known_hosts
+.idea/

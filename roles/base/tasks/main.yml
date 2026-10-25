@@ -4,7 +4,6 @@
       - curl
       - fail2ban
       - iptables
-      - ipset
       - logrotate
       - unattended-upgrades
     state: present
