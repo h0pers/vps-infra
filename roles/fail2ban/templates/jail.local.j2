@@ -1,4 +1,5 @@
 [DEFAULT]
+ignoreip          = 127.0.0.1/8 ::1 {{ fail2ban_ignoreip | join(' ') }}
 bantime           = 1d
 findtime          = 10m
 maxretry          = 5
@@ -13,17 +14,3 @@ port     = ssh
 maxretry = {{ fail2ban_ssh_maxretry }}
 findtime = {{ fail2ban_ssh_findtime }}
 bantime  = {{ fail2ban_ssh_bantime }}
-
-[traefik-http]
-enabled      = true
-filter       = traefik-http
-backend      = polling
-journalmatch =
-logpath      = {{ fail2ban_traefik_log_path }}
-logtimezone  = UTC
-banaction    = iptables-ipset[type=multiport]
-chain        = DOCKER-USER
-port         = http,https
-maxretry = {{ fail2ban_http_maxretry }}
-findtime = {{ fail2ban_http_findtime }}
-bantime  = {{ fail2ban_http_bantime }}

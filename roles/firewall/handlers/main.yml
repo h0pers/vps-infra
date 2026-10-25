@@ -3,4 +3,3 @@
     name: iptables-hardening
     state: restarted
     daemon_reload: true
-  notify: Restart fail2ban

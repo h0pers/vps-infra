@@ -13,12 +13,12 @@ The `h0pers.vps.site` playbook runs these roles on the `vps` inventory group:
 | `base` | Base packages, unattended security upgrades (no auto-reboot), swap, SYN cookies |
 | `users` | `ansible` admin user with passwordless sudo, one deploy user per app in the `docker` group (no sudo), SSH keys merged (existing keys are kept) |
 | `docker` | Docker from the official apt repository, [docker-rollout](https://github.com/Wowu/docker-rollout) at a pinned version, container logs capped at 10 MB × 3 files |
-| `firewall` | iptables + ip6tables: SYN flood protection, SSH rate limit on `INPUT`, HTTP/HTTPS rate limit on `DOCKER-USER` |
+| `firewall` | iptables + ip6tables: `INPUT` drops everything except SSH, ICMP and DHCP replies; `DOCKER-USER` lets in only ports 80/443 and `firewall_docker_allowed_ports` |
 | `traefik` | Traefik on ports 80/443 in `/opt/vps-infra/traefik`, access logs rotated daily (14 days) |
-| `fail2ban` | SSH jail (10 failures / 5 min), Traefik jail (20 errors / 5 min) that bans in `DOCKER-USER`, incremental bans up to 30 days |
+| `fail2ban` | SSH jail (10 failures / 5 min), incremental bans up to 30 days |
 | `ssh` | Password and root login disabled |
 
-Docker-published ports bypass the `INPUT` chain, so all rules and bans for web traffic live in `DOCKER-USER`.
+Docker-published ports bypass the `INPUT` chain, so all firewall rules for web traffic live in `DOCKER-USER`.
 
 ## Set up your servers repository
 
@@ -97,11 +97,9 @@ vps:
 | `base_swap_size_mb` | `2048` | Swap file size, applied only when the swap file is created |
 | `docker_log_max_size` | `10m` | Size at which a container log file is rotated |
 | `docker_log_max_file` | `3` | Rotated log files kept per container |
-| `firewall_ssh_rate_per_minute` | `5` | New SSH connections per minute per IP |
-| `firewall_http_rate_per_minute` | `100` | New HTTP/HTTPS connections per minute per IP |
-| `firewall_http_rate_burst` | `200` | Burst above the HTTP/HTTPS rate |
+| `firewall_docker_allowed_ports` | `[]` | Published container ports reachable from outside besides 80/443, e.g. `["25565/tcp", "51820/udp"]` |
 | `fail2ban_ssh_maxretry` | `10` | Failed SSH logins before a ban |
-| `fail2ban_http_maxretry` | `20` | Traefik 4xx/5xx responses before a ban |
+| `fail2ban_ignoreip` | `[]` | IPs or CIDRs that are never banned, e.g. your office or VPN |
 
 All defaults live in `roles/*/defaults/main.yml` and can be overridden per group or per host in the inventory.
 
