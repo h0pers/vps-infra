@@ -12,7 +12,7 @@ The `h0pers.vps.site` playbook runs these roles on the `vps` inventory group:
 |---|---|
 | `base` | Base packages, unattended security upgrades (no auto-reboot), swap, SYN cookies |
 | `users` | `ansible` admin user with passwordless sudo, one deploy user per app in the `docker` group (no sudo), SSH keys merged (existing keys are kept) |
-| `docker` | Docker from the official apt repository, [docker-rollout](https://github.com/Wowu/docker-rollout) at a pinned version |
+| `docker` | Docker from the official apt repository, [docker-rollout](https://github.com/Wowu/docker-rollout) at a pinned version, container logs capped at 10 MB × 3 files |
 | `firewall` | iptables + ip6tables: SYN flood protection, SSH rate limit on `INPUT`, HTTP/HTTPS rate limit on `DOCKER-USER` |
 | `traefik` | Traefik on ports 80/443 in `/opt/vps-infra/traefik`, access logs rotated daily (14 days) |
 | `fail2ban` | SSH jail (10 failures / 5 min), Traefik jail (20 errors / 5 min) that bans in `DOCKER-USER`, incremental bans up to 30 days |
@@ -95,6 +95,8 @@ vps:
 | `traefik_acme_email` | | Let's Encrypt account email. Required |
 | `users_admin_user` | `ansible` | Admin user name |
 | `base_swap_size_mb` | `2048` | Swap file size, applied only when the swap file is created |
+| `docker_log_max_size` | `10m` | Size at which a container log file is rotated |
+| `docker_log_max_file` | `3` | Rotated log files kept per container |
 | `firewall_ssh_rate_per_minute` | `5` | New SSH connections per minute per IP |
 | `firewall_http_rate_per_minute` | `100` | New HTTP/HTTPS connections per minute per IP |
 | `firewall_http_rate_burst` | `200` | Burst above the HTTP/HTTPS rate |

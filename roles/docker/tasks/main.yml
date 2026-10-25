@@ -29,6 +29,29 @@
     architectures: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
     signed_by: /etc/apt/keyrings/docker.asc
 
+- name: Create Docker config directory
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Docker log rotation
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    docker_daemon_config:
+      log-driver: json-file
+      log-opts:
+        max-size: "{{ docker_log_max_size }}"
+        max-file: "{{ docker_log_max_file | string }}"
+  notify: Restart Docker
+
 - name: Install Docker
   ansible.builtin.apt:
     name:
@@ -45,6 +68,9 @@
     name: docker
     enabled: true
     state: started
+
+- name: Apply Docker config before containers are created
+  ansible.builtin.meta: flush_handlers
 
 - name: Add deploy users to docker group
   ansible.builtin.user:
